@@ -3,6 +3,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SharedScreen</title>
+<!-- Prévia do link no Discord/WhatsApp (Open Graph). A imagem precisa de URL absoluta. -->
+<meta name="description" content="Uma tela ao vivo, com som. Clique para assistir e use o código de acesso que você recebeu.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="SharedScreen">
+<meta property="og:title" content="Tem tela ao vivo te esperando">
+<meta property="og:description" content="Clique para assistir. Você vai precisar do código de acesso de quem está transmitindo.">
+<meta property="og:image" content="https://yagoxavier.github.io/SharedScreen/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#FFB547">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Figtree:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap">
 <style>
@@ -24,16 +35,20 @@
   .marca span { color: var(--glow); }
   #sub { margin: 14px 0 32px; color: var(--muted); font-size: 18px; }
   .opcoes { display: grid; gap: 10px; margin: 0 0 24px; padding: 0; border: 0; text-align: left; }
-  .opcoes legend { padding: 0 0 8px; color: var(--muted); font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+  .opcoes legend, #campo { padding: 0 0 8px; color: var(--muted); font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
   .opcoes label { display: flex; gap: 14px; align-items: center; padding: 14px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; cursor: pointer; }
   .opcoes label:has(input:checked) { border-color: var(--glow); box-shadow: inset 0 0 0 1px var(--glow); }
   .opcoes input { margin: 0; accent-color: var(--glow); }
   .opcoes b { display: block; font-weight: 600; }
   .opcoes small { color: var(--muted); font-size: 14px; }
+  #campo { display: grid; gap: 8px; margin-bottom: 16px; text-align: left; }
+  #pinin { width: 100%; padding: 12px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; color: var(--text); font: 500 30px 'JetBrains Mono', monospace; letter-spacing: .4em; text-align: center; }
+  #pinin:focus { border-color: var(--glow); }
   #go { width: 100%; padding: 16px; background: var(--glow); color: #1C1530; font-size: 18px; font-weight: 700; }
   #go:hover { filter: brightness(1.08); }
   #nota { margin: 16px 0 0; color: var(--muted); font-size: 14px; }
   #nota b { color: var(--text); font-weight: 600; }
+  #nota.erro { color: var(--live); font-weight: 600; }
 
   /* Ao vivo */
   #palco { display: none; flex: 1; flex-direction: column; gap: 12px; min-height: 0; padding: 12px 16px 16px; }
@@ -51,37 +66,48 @@
   #link { flex: 1; min-width: 0; padding: 10px 12px; background: none; border: 0; color: var(--text); font: 500 14px 'JetBrains Mono', monospace; }
   #copiar { padding: 0 16px; border-radius: 0; background: var(--line); color: var(--text); font-weight: 600; }
   #st { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; color: var(--muted); font-size: 14px; }
-  .chip { padding: 4px 9px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); color: var(--text); }
+  .chip { padding: 4px 9px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); color: var(--text); font-size: 14px; }
   .chip b { color: var(--glow); font: 500 13px 'JetBrains Mono', monospace; }
   #aviso { color: var(--live); font-size: 14px; }
+  #inicio { padding: 6px 12px; background: var(--panel); border: 1px solid var(--line); color: var(--text); font-weight: 600; }
+  #inicio:hover { border-color: var(--muted); }
   #sair { margin-left: auto; padding: 8px 14px; background: none; border: 1px solid var(--line); color: var(--muted); }
   #sair:hover { color: var(--text); border-color: var(--muted); }
-  .tela { flex: 1; min-height: 0; overflow: hidden; border-radius: 16px; background: #000; box-shadow: 0 0 0 1px var(--line), 0 30px 120px -20px rgba(255, 181, 71, .28); }
+  .tela { position: relative; flex: 1; min-height: 0; overflow: hidden; border-radius: 16px; background: #000; box-shadow: 0 0 0 1px var(--line), 0 30px 120px -20px rgba(255, 181, 71, .28); }
   video { display: block; width: 100%; height: 100%; object-fit: contain; }
+  #fimtela { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 16px; background: rgba(22, 19, 42, .9); text-align: center; }
+  #fimmsg { margin: 0; font: 800 clamp(26px, 4vw, 40px)/1.1 'Bricolage Grotesque', sans-serif; letter-spacing: -.02em; }
+  #denovo { padding: 12px 22px; background: var(--glow); color: #1C1530; font-weight: 700; }
 </style>
 
-<main id="lobby">
+<form id="lobby">
   <h1 class="marca">Shared<span>Screen</span></h1>
-  <p id="sub">Sua tela e o som do PC, ao vivo, para quem tiver o link.</p>
+  <p id="sub">Sua tela e o som do PC, ao vivo, para quem tiver o link e o código.</p>
   <fieldset class="opcoes" id="q">
     <legend>Qualidade</legend>
     <label><input type="radio" name="q" value="motion" checked><span><b>Fluido</b><small>Vídeo e jogo · 1080p 60fps · ~10 Mbps por pessoa</small></span></label>
     <label><input type="radio" name="q" value="detail"><span><b>Nítido</b><small>Texto e código · 1080p 15fps · ~6 Mbps por pessoa</small></span></label>
     <label><input type="radio" name="q" value="leve"><span><b>Leve</b><small>Internet fraca · 720p 30fps · ~2,5 Mbps por pessoa</small></span></label>
   </fieldset>
+  <label id="campo" hidden>Código de acesso<input id="pinin" inputmode="numeric" autocomplete="off" maxlength="6" pattern="\d{6}" title="6 números"></label>
   <button id="go">Transmitir</button>
   <p id="nota">Na janela que abrir, escolha <b>Tela inteira</b> e ative <b>Compartilhar áudio do sistema</b>.</p>
-</main>
+</form>
 
 <section id="palco">
   <div class="barra">
+    <button id="inicio" hidden title="Encerra e volta para escolher a qualidade">← Início</button>
     <span id="tally">AO VIVO</span>
-    <div id="caixa"><input id="link" readonly placeholder="Gerando link…" aria-label="Link da sala" onclick="this.select()"><button id="copiar" disabled>Copiar link</button></div>
+    <div id="caixa"><input id="link" readonly aria-label="Link da sala" onclick="this.select()"><button id="copiar" disabled>Copiar link</button></div>
+    <span id="acesso"></span>
     <span id="st" aria-live="polite"></span>
     <span id="aviso" hidden>Sem áudio: compartilhe a tela inteira com o áudio do sistema</span>
     <button id="sair">Encerrar</button>
   </div>
-  <div class="tela"><video id="v" autoplay playsinline controls></video></div>
+  <div class="tela">
+    <video id="v" autoplay playsinline controls></video>
+    <div id="fimtela" hidden role="status"><p id="fimmsg"></p><button id="denovo"></button></div>
+  </div>
 </section>
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" integrity="sha384-nlUQ8ZqCbvStErob+biJNzSgltf6urV3VGqhfIfzhmg9RXmpeRm76ELw0pYnKlTR" crossorigin="anonymous"></script>
@@ -102,96 +128,161 @@
     const hex = [...h.slice(0, 4)].map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
     return hex.slice(0, 4) + '-' + hex.slice(4);
   };
-  const conectado = (pc, fn) => pc.addEventListener('connectionstatechange', () => pc.connectionState === 'connected' && fn());
+  const novoPin = () => String(crypto.getRandomValues(new Uint32Array(1))[0] % 1e6).padStart(6, '0');
   const sala = new URLSearchParams(location.search).get('sala');
 
-  let p, s, fim = false;
-  const peer = () => {
-    p = new Peer();
-    p.on('error', e => st.textContent = e.type === 'peer-unavailable' ? 'Essa sala não existe mais. Peça um link novo.' : 'Erro de conexão: ' + e.type);
-  };
+  let p, s, dc, fim = false, pinAtual = '';
+  const codigos = new Map(); // transmissor: conexão liberada -> código de verificação
   const aoVivo = (sim, txt) => { tally.textContent = txt; tally.classList.toggle('off', !sim); };
   // Monta via textContent: nada que vem da rede vira HTML.
-  const chip = (cod, rotulo) => {
+  const chip = (val, rotulo) => {
     const el = document.createElement('span');
     el.className = 'chip';
     if (rotulo) el.append(rotulo + ' ');
-    el.append(Object.assign(document.createElement('b'), { textContent: cod }));
+    el.append(Object.assign(document.createElement('b'), { textContent: val }));
     return el;
   };
-  const encerra = msg => {
+  const encerra = (msg, botao) => {
     if (fim) return;
     fim = true;
-    p?.destroy();
+    // Avisa a outra ponta antes de fechar: sem isso quem assiste fica com a imagem congelada.
+    for (const c of codigos.keys()) c.open && c.send({ fim: true });
+    dc?.open && dc.send({ saiu: true });
+    const velho = p;
+    setTimeout(() => velho?.destroy(), 300);
     s?.getTracks().forEach(t => t.stop());
     v.srcObject = null;
     aoVivo(false, 'ENCERRADA');
-    st.textContent = msg;
-    caixa.hidden = sair.hidden = aviso.hidden = true;
+    st.textContent = '';
+    caixa.hidden = sair.hidden = aviso.hidden = acesso.hidden = true;
+    fimmsg.textContent = msg;
+    denovo.textContent = botao;
+    fimtela.hidden = !msg;
   };
-  sair.onclick = () => encerra(sala ? 'Você saiu da transmissão.' : 'Transmissão encerrada.');
+  addEventListener('pagehide', () => encerra('', ''));
   copiar.onclick = async () => {
     await navigator.clipboard.writeText(link.value);
     copiar.textContent = 'Copiado';
     setTimeout(() => copiar.textContent = 'Copiar link', 1500);
   };
 
-  if (sala) {
-    // Espectador: o clique em "Assistir" libera o autoplay com som.
-    sub.textContent = 'Você foi convidado para assistir uma tela ao vivo.';
-    nota.textContent = 'Só imagem e som. Ninguém vê nem ouve você.';
-    go.textContent = 'Assistir';
-    sair.textContent = 'Sair';
-    q.hidden = caixa.hidden = true;
-    go.onclick = () => {
-      document.body.classList.add('vivo');
-      aoVivo(false, 'CONECTANDO');
-      peer();
-      p.on('open', () => p.connect(sala));
-      p.on('call', c => {
-        if (c.peer !== sala) return c.close();
-        c.answer(undefined, { sdpTransform: stereo });
-        c.on('stream', m => v.srcObject = m);
-        c.on('close', () => encerra('A transmissão terminou.'));
-        conectado(c.peerConnection, async () => {
-          aoVivo(true, 'AO VIVO');
-          st.replaceChildren(chip(await codigo(c.peerConnection), 'Código'), 'confira com quem transmite');
-        });
+  // Espectador: entra com o código; o clique em "Assistir" também libera o autoplay com som.
+  const assistir = pin => {
+    pinAtual = pin;
+    fim = false;
+    fimtela.hidden = true;
+    sair.hidden = false;
+    nota.className = '';
+    document.body.classList.add('vivo');
+    aoVivo(false, 'CONECTANDO');
+    st.textContent = 'Conectando…';
+    const meu = p = new Peer();
+    const ativo = () => p === meu && !fim;
+    meu.on('error', e => ativo() && encerra(e.type === 'peer-unavailable' ? 'A transmissão não está no ar.' : 'Erro de conexão: ' + e.type, 'Reconectar'));
+    meu.on('open', () => {
+      dc = meu.connect(sala);
+      dc.on('open', () => dc.send({ pin }));
+      dc.on('data', d => {
+        if (!ativo()) return;
+        if (d?.fim) return encerra('A transmissão terminou.', 'Reconectar');
+        if (d?.errado || d?.trancada) {
+          fim = true;
+          meu.destroy();
+          document.body.classList.remove('vivo');
+          nota.textContent = d.trancada
+            ? 'Essa sala não aceita mais ninguém (muitas tentativas erradas). Peça um link novo.'
+            : 'Código incorreto. Confira com quem transmite.';
+          nota.className = 'erro';
+          pinin.select();
+        }
       });
+    });
+    meu.on('call', c => {
+      if (c.peer !== sala) return c.close();
+      c.answer(undefined, { sdpTransform: stereo });
+      c.on('stream', m => v.srcObject = m);
+      const pc = c.peerConnection;
+      pc.addEventListener('connectionstatechange', async () => {
+        if (!ativo()) return;
+        const e = pc.connectionState;
+        if (e === 'connected') {
+          aoVivo(true, 'AO VIVO');
+          st.replaceChildren(chip(await codigo(pc), 'Verificação'));
+        } else if (e === 'disconnected') {
+          aoVivo(false, 'SINAL FRACO');
+          st.textContent = 'Tentando recuperar a conexão…';
+        } else if (e === 'failed' || e === 'closed') {
+          encerra('A conexão caiu.', 'Reconectar');
+        }
+      });
+    });
+  };
+
+  // Transmissor: quem entra abre uma conexão de dados e manda o código; se bater, ligamos com a tela.
+  const transmitir = async () => {
+    const cfg = PRESETS[document.querySelector('input[name=q]:checked').value];
+    try {
+      s = await navigator.mediaDevices.getDisplayMedia({
+        video: { width: { ideal: cfg.w }, height: { ideal: cfg.h }, frameRate: { ideal: cfg.fps } },
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      });
+    } catch { return; } // Cancelou a janela de escolha da tela.
+    // contentHint faz o Chrome priorizar nitidez (detail) ou fluidez (motion) quando a banda aperta.
+    s.getVideoTracks()[0].contentHint = cfg.hint;
+    s.getVideoTracks()[0].onended = () => encerra('Você parou de compartilhar.', 'Voltar ao início');
+    aviso.hidden = s.getAudioTracks().length > 0;
+    v.srcObject = s;
+    v.muted = true;
+    document.body.classList.add('vivo');
+    aoVivo(true, 'AO VIVO');
+    // Link e código novos a cada transmissão: um link fixo deixaria quem o tem registrar a mesma sala
+    // enquanto você está fora e colher o código de quem tenta reconectar.
+    const pin = novoPin();
+    acesso.replaceChildren(chip(pin, 'Código de acesso'));
+
+    // Mostra quem assiste e o código de verificação de cada um: link vazado aparece como gente a mais.
+    let erros = 0;
+    const LIMITE = 10; // tentativas erradas até a sala parar de aceitar gente nova
+    const status = () => {
+      if (fim) return; // destroy() fecha as conexões e dispara 'close' depois do encerramento.
+      const n = codigos.size;
+      st.replaceChildren(n ? n + (n > 1 ? ' pessoas assistindo' : ' pessoa assistindo') : 'Ninguém assistindo ainda', ...[...codigos.values()].map(cod => chip(cod)));
+      if (erros >= LIMITE) st.append(' · sala trancada: ' + erros + ' tentativas com código errado. Volte ao início para gerar link e código novos.');
+      else if (erros) st.append(' · ' + erros + (erros > 1 ? ' tentativas' : ' tentativa') + ' com código errado');
     };
-  } else {
-    // Transmissor: quem entra abre uma conexão de dados; respondemos ligando com a tela.
-    go.onclick = async () => {
-      const cfg = PRESETS[document.querySelector('input[name=q]:checked').value];
-      try {
-        s = await navigator.mediaDevices.getDisplayMedia({
-          video: { width: { ideal: cfg.w }, height: { ideal: cfg.h }, frameRate: { ideal: cfg.fps } },
-          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-        });
-      } catch { return; } // Cancelou a janela de escolha da tela.
-      // contentHint faz o Chrome priorizar nitidez (detail) ou fluidez (motion) quando a banda aperta.
-      s.getVideoTracks()[0].contentHint = cfg.hint;
-      aviso.hidden = s.getAudioTracks().length > 0;
-      v.srcObject = s;
-      v.muted = true;
-      document.body.classList.add('vivo');
-      aoVivo(true, 'AO VIVO');
-      peer();
-      p.on('open', id => { link.value = location.href.split('?')[0] + '?sala=' + id; copiar.disabled = false; });
-      // Mostra quem assiste e o código de cada um: link vazado aparece como gente a mais.
-      const codigos = new Map();
-      const status = () => {
-        if (fim) return; // destroy() fecha as conexões e dispara 'close' depois do encerramento.
-        if (!codigos.size) return st.textContent = 'Ninguém assistindo ainda';
-        st.replaceChildren(codigos.size + (codigos.size > 1 ? ' pessoas assistindo' : ' pessoa assistindo'), ...[...codigos.values()].map(cod => chip(cod)));
-      };
+    const meu = p = new Peer();
+    meu.on('open', id => {
+      link.value = location.href.split('?')[0] + '?sala=' + id;
+      copiar.disabled = false;
       status();
-      p.on('connection', c => c.on('open', () => {
+    });
+    // Queda só do servidor de sinalização não derruba quem já assiste; reconecta mantendo o link.
+    meu.on('disconnected', () => !fim && !meu.destroyed && meu.reconnect());
+    meu.on('error', e => st.textContent = 'Erro de conexão: ' + e.type);
+    meu.on('connection', c => {
+      let tentou = false, chamada;
+      // Fechar o canal de dados derruba também o vídeo: ninguém some da lista e continua assistindo.
+      c.on('close', () => { chamada?.close(); codigos.delete(c); status(); });
+      // Quem conecta e não manda o código em 10 s é derrubado.
+      setTimeout(() => !tentou && c.close(), 10000);
+      c.on('data', d => {
+        if (d?.saiu) return c.close();
+        if (tentou) return;
+        tentou = true; // uma tentativa por conexão: força bruta exige uma conexão WebRTC nova a cada chute
+        if (erros >= LIMITE || typeof d?.pin !== 'string' || d.pin !== pin) {
+          if (erros < LIMITE) erros++;
+          status();
+          c.send(erros >= LIMITE ? { trancada: true } : { errado: true });
+          return setTimeout(() => c.close(), 500);
+        }
         codigos.set(c, '…');
         status();
-        c.on('close', () => { codigos.delete(c); status(); });
-        const pc = p.call(c.peer, s, { sdpTransform: stereo }).peerConnection;
-        conectado(pc, async () => {
+        chamada = meu.call(c.peer, s, { sdpTransform: stereo });
+        const pc = chamada.peerConnection;
+        pc.addEventListener('connectionstatechange', async () => {
+          const e = pc.connectionState;
+          if (e === 'failed' || e === 'closed') return c.close();
+          if (e !== 'connected') return;
           const cod = await codigo(pc);
           if (codigos.has(c)) { codigos.set(c, cod); status(); }
           // O teto padrão do WebRTC para tela é baixo; sobe o maxBitrate do vídeo depois de conectar.
@@ -202,8 +293,30 @@
             snd.setParameters(prm);
           }
         });
-      }));
-      s.getVideoTracks()[0].onended = () => encerra('Você parou de compartilhar.');
-    };
+      });
+    });
+  };
+
+  if (sala) {
+    sub.textContent = 'Você foi convidado para assistir uma tela ao vivo.';
+    nota.textContent = 'Só imagem e som. Ninguém vê nem ouve você.';
+    go.textContent = 'Assistir';
+    sair.textContent = 'Sair';
+    q.hidden = caixa.hidden = acesso.hidden = true;
+    campo.hidden = false;
+    pinin.required = true;
+    pinin.focus();
+    denovo.onclick = () => assistir(pinAtual);
+    sair.onclick = () => encerra('Você saiu da transmissão.', 'Reconectar');
+  } else {
+    // Voltar ao início = recarregar; a próxima transmissão sai com link e código novos.
+    denovo.onclick = () => location.reload();
+    inicio.hidden = false;
+    inicio.onclick = () => { encerra('', ''); setTimeout(() => location.reload(), 350); };
+    sair.onclick = () => encerra('Transmissão encerrada.', 'Voltar ao início');
   }
+  lobby.onsubmit = e => {
+    e.preventDefault();
+    sala ? assistir(pinin.value) : transmitir();
+  };
 </script>
