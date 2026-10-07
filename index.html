@@ -28,6 +28,16 @@
   };
   // Opus sai mono ~32 kbps por padrão; pede estéreo e mais bitrate (música/jogo).
   const stereo = sdp => sdp.replace(/useinbandfec=1/g, 'useinbandfec=1;stereo=1;sprop-stereo=1;maxaveragebitrate=256000');
+  // Código de verificação: hash das impressões digitais DTLS das duas pontas. Quem se põe no meio
+  // troca as chaves, e os códigos dos dois lados deixam de bater. 8 hex = inviável forçar em tempo real.
+  const codigo = async pc => {
+    const fp = d => d.sdp.match(/a=fingerprint:\S+ (\S+)/)[1];
+    const txt = [fp(pc.localDescription), fp(pc.remoteDescription)].sort().join();
+    const h = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt)));
+    const hex = [...h.slice(0, 4)].map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+    return hex.slice(0, 4) + '-' + hex.slice(4);
+  };
+  const conectado = (pc, fn) => pc.addEventListener('connectionstatechange', () => pc.connectionState === 'connected' && fn());
   const sala = new URLSearchParams(location.search).get('sala');
   const peer = () => {
     const p = new Peer();
@@ -47,7 +57,8 @@
       p.on('call', c => {
         if (c.peer !== sala) return c.close();
         c.answer(undefined, { sdpTransform: stereo });
-        c.on('stream', s => { v.srcObject = s; st.textContent = ''; });
+        c.on('stream', s => v.srcObject = s);
+        conectado(c.peerConnection, async () => st.textContent = 'Código: ' + await codigo(c.peerConnection) + ' (confira com quem transmite)');
         c.on('close', () => st.textContent = 'Transmissão encerrada.');
       });
     };
@@ -67,16 +78,18 @@
       go.hidden = q.disabled = true;
       const p = peer();
       p.on('open', id => link.value = location.href.split('?')[0] + '?sala=' + id);
-      // Mostra quantos assistem: link vazado aparece como gente a mais.
-      let n = 0;
-      const conta = d => st.textContent = (n += d) + ' assistindo';
+      // Mostra quem assiste e o código de cada um: link vazado aparece como gente a mais.
+      const codigos = new Map();
+      const status = () => st.textContent = codigos.size + ' assistindo' + (codigos.size ? ' · códigos: ' + [...codigos.values()].join('  ') : '');
       p.on('connection', c => c.on('open', () => {
-        conta(1);
-        c.on('close', () => conta(-1));
+        codigos.set(c, '…');
+        status();
+        c.on('close', () => { codigos.delete(c); status(); });
         const pc = p.call(c.peer, s, { sdpTransform: stereo }).peerConnection;
-        // O teto padrão do WebRTC para tela é baixo; sobe o maxBitrate do vídeo depois de conectar.
-        pc.addEventListener('connectionstatechange', () => {
-          if (pc.connectionState !== 'connected') return;
+        conectado(pc, async () => {
+          const cod = await codigo(pc);
+          if (codigos.has(c)) { codigos.set(c, cod); status(); }
+          // O teto padrão do WebRTC para tela é baixo; sobe o maxBitrate do vídeo depois de conectar.
           for (const snd of pc.getSenders()) {
             if (snd.track?.kind !== 'video') continue;
             const prm = snd.getParameters();
