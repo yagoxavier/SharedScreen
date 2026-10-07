@@ -119,20 +119,24 @@
   };
   // Opus sai mono ~32 kbps por padrão; pede estéreo e mais bitrate (música/jogo).
   const stereo = sdp => sdp.replace(/useinbandfec=1/g, 'useinbandfec=1;stereo=1;sprop-stereo=1;maxaveragebitrate=256000');
-  // Código de verificação: hash das impressões digitais DTLS das duas pontas. Quem se põe no meio
-  // troca as chaves, e os códigos dos dois lados deixam de bater. 8 hex = inviável forçar em tempo real.
-  const codigo = async pc => {
-    const fp = d => d.sdp.match(/a=fingerprint:\S+ (\S+)/)[1];
-    const txt = [fp(pc.localDescription), fp(pc.remoteDescription)].sort().join();
-    const h = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt)));
-    const hex = [...h.slice(0, 4)].map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
-    return hex.slice(0, 4) + '-' + hex.slice(4);
+  // Identidade da transmissão: cada ponta usa UM certificado DTLS em todas as suas conexões, e o
+  // transmissor põe a impressão digital do dele no link (&k=). Quem assiste confere cada conexão
+  // contra ela ANTES de mandar o código: impostor com o mesmo id de sala, ou alguém no meio da
+  // conexão, não tem esse certificado — o navegador recusa o DTLS se o certificado não bater com o SDP.
+  const fps = sdp => [...sdp.matchAll(/a=fingerprint:sha-256 (\S+)/g)].map(m => m[1].replace(/:/g, '').toLowerCase());
+  const confere = (sdp, esperado) => { const f = fps(sdp); return f.length > 0 && f.every(x => x === esperado); };
+  const comCertificado = async () => {
+    const cert = await RTCPeerConnection.generateCertificate({ name: 'ECDSA', namedCurve: 'P-256' });
+    const fp = cert.getFingerprints().find(f => f.algorithm === 'sha-256').value.replace(/:/g, '').toLowerCase();
+    // Mantém os servidores STUN/TURN padrão do PeerJS e só acrescenta o certificado.
+    return { fp, config: { ...peerjs.util.defaultConfig, certificates: [cert] } };
   };
   const novoPin = () => String(crypto.getRandomValues(new Uint32Array(1))[0] % 1e6).padStart(6, '0');
-  const sala = new URLSearchParams(location.search).get('sala');
+  const params = new URLSearchParams(location.search);
+  const sala = params.get('sala'), k = params.get('k');
 
   let p, s, dc, fim = false, pinAtual = '';
-  const codigos = new Map(); // transmissor: conexão liberada -> código de verificação
+  const espectadores = new Set(); // transmissor: conexões que passaram no código
   const aoVivo = (sim, txt) => { tally.textContent = txt; tally.classList.toggle('off', !sim); };
   // Monta via textContent: nada que vem da rede vira HTML.
   const chip = (val, rotulo) => {
@@ -146,7 +150,7 @@
     if (fim) return;
     fim = true;
     // Avisa a outra ponta antes de fechar: sem isso quem assiste fica com a imagem congelada.
-    for (const c of codigos.keys()) c.open && c.send({ fim: true });
+    for (const c of espectadores) c.open && c.send({ fim: true });
     dc?.open && dc.send({ saiu: true });
     const velho = p;
     setTimeout(() => velho?.destroy(), 300);
@@ -167,7 +171,7 @@
   };
 
   // Espectador: entra com o código; o clique em "Assistir" também libera o autoplay com som.
-  const assistir = pin => {
+  const assistir = async pin => {
     pinAtual = pin;
     fim = false;
     fimtela.hidden = true;
@@ -176,12 +180,20 @@
     document.body.classList.add('vivo');
     aoVivo(false, 'CONECTANDO');
     st.textContent = 'Conectando…';
-    const meu = p = new Peer();
+    const { config } = await comCertificado();
+    const meu = p = new Peer({ config });
     const ativo = () => p === meu && !fim;
+    let verificado = false;
+    const impostor = () => encerra('Essa conexão não veio de quem criou o link. Seu código não foi enviado.', 'Reconectar');
     meu.on('error', e => ativo() && encerra(e.type === 'peer-unavailable' ? 'A transmissão não está no ar.' : 'Erro de conexão: ' + e.type, 'Reconectar'));
     meu.on('open', () => {
       dc = meu.connect(sala);
-      dc.on('open', () => dc.send({ pin }));
+      dc.on('open', () => {
+        if (!ativo()) return;
+        if (!confere(dc.peerConnection.remoteDescription.sdp, k)) return impostor();
+        verificado = true;
+        dc.send({ pin });
+      });
       dc.on('data', d => {
         if (!ativo()) return;
         if (d?.fim) return encerra('A transmissão terminou.', 'Reconectar');
@@ -198,16 +210,20 @@
       });
     });
     meu.on('call', c => {
-      if (c.peer !== sala) return c.close();
+      if (c.peer !== sala || !verificado) return c.close();
       c.answer(undefined, { sdpTransform: stereo });
-      c.on('stream', m => v.srcObject = m);
       const pc = c.peerConnection;
-      pc.addEventListener('connectionstatechange', async () => {
+      // O vídeo vem numa conexão separada: confere o certificado dela também.
+      pc.addEventListener('signalingstatechange', () => {
+        if (ativo() && pc.signalingState === 'stable' && !confere(pc.remoteDescription.sdp, k)) impostor();
+      });
+      c.on('stream', m => ativo() && (v.srcObject = m));
+      pc.addEventListener('connectionstatechange', () => {
         if (!ativo()) return;
         const e = pc.connectionState;
         if (e === 'connected') {
           aoVivo(true, 'AO VIVO');
-          st.replaceChildren(chip(await codigo(pc), 'Verificação'));
+          st.replaceChildren(chip('verificada', 'Conexão'));
         } else if (e === 'disconnected') {
           aoVivo(false, 'SINAL FRACO');
           st.textContent = 'Tentando recuperar a conexão…';
@@ -240,19 +256,20 @@
     const pin = novoPin();
     acesso.replaceChildren(chip(pin, 'Código de acesso'));
 
-    // Mostra quem assiste e o código de verificação de cada um: link vazado aparece como gente a mais.
+    // Mostra quantos assistem: link vazado aparece como gente a mais.
     let erros = 0;
     const LIMITE = 10; // tentativas erradas até a sala parar de aceitar gente nova
     const status = () => {
       if (fim) return; // destroy() fecha as conexões e dispara 'close' depois do encerramento.
-      const n = codigos.size;
-      st.replaceChildren(n ? n + (n > 1 ? ' pessoas assistindo' : ' pessoa assistindo') : 'Ninguém assistindo ainda', ...[...codigos.values()].map(cod => chip(cod)));
+      const n = espectadores.size;
+      st.textContent = n ? n + (n > 1 ? ' pessoas assistindo' : ' pessoa assistindo') : 'Ninguém assistindo ainda';
       if (erros >= LIMITE) st.append(' · sala trancada: ' + erros + ' tentativas com código errado. Volte ao início para gerar link e código novos.');
       else if (erros) st.append(' · ' + erros + (erros > 1 ? ' tentativas' : ' tentativa') + ' com código errado');
     };
-    const meu = p = new Peer();
+    const { fp, config } = await comCertificado();
+    const meu = p = new Peer({ config });
     meu.on('open', id => {
-      link.value = location.href.split('?')[0] + '?sala=' + id;
+      link.value = location.href.split('?')[0] + '?sala=' + id + '&k=' + fp;
       copiar.disabled = false;
       status();
     });
@@ -262,7 +279,7 @@
     meu.on('connection', c => {
       let tentou = false, chamada;
       // Fechar o canal de dados derruba também o vídeo: ninguém some da lista e continua assistindo.
-      c.on('close', () => { chamada?.close(); codigos.delete(c); status(); });
+      c.on('close', () => { chamada?.close(); espectadores.delete(c); status(); });
       // Quem conecta e não manda o código em 10 s é derrubado.
       setTimeout(() => !tentou && c.close(), 10000);
       c.on('data', d => {
@@ -275,16 +292,20 @@
           c.send(erros >= LIMITE ? { trancada: true } : { errado: true });
           return setTimeout(() => c.close(), 500);
         }
-        codigos.set(c, '…');
+        espectadores.add(c);
         status();
+        // O código chegou por esta conexão, então o certificado dela é o de quem digitou. O vídeo só
+        // sai se a conexão de vídeo tiver o mesmo certificado: alguém no meio não recebe a tela.
+        const dele = fps(c.peerConnection.remoteDescription.sdp)[0];
         chamada = meu.call(c.peer, s, { sdpTransform: stereo });
         const pc = chamada.peerConnection;
-        pc.addEventListener('connectionstatechange', async () => {
+        pc.addEventListener('signalingstatechange', () => {
+          if (pc.signalingState === 'stable' && !confere(pc.remoteDescription.sdp, dele)) c.close();
+        });
+        pc.addEventListener('connectionstatechange', () => {
           const e = pc.connectionState;
           if (e === 'failed' || e === 'closed') return c.close();
           if (e !== 'connected') return;
-          const cod = await codigo(pc);
-          if (codigos.has(c)) { codigos.set(c, cod); status(); }
           // O teto padrão do WebRTC para tela é baixo; sobe o maxBitrate do vídeo depois de conectar.
           for (const snd of pc.getSenders()) {
             if (snd.track?.kind !== 'video') continue;
@@ -306,6 +327,11 @@
     campo.hidden = false;
     pinin.required = true;
     pinin.focus();
+    if (!/^[0-9a-f]{64}$/.test(k || '')) {
+      nota.textContent = 'Link incompleto. Peça o link de novo para quem transmite.';
+      nota.className = 'erro';
+      go.disabled = true;
+    }
     denovo.onclick = () => assistir(pinAtual);
     sair.onclick = () => encerra('Você saiu da transmissão.', 'Reconectar');
   } else {
