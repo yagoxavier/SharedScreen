@@ -123,8 +123,15 @@
   // transmissor põe a impressão digital do dele no link (&k=). Quem assiste confere cada conexão
   // contra ela ANTES de mandar o código: impostor com o mesmo id de sala, ou alguém no meio da
   // conexão, não tem esse certificado — o navegador recusa o DTLS se o certificado não bater com o SDP.
-  const fps = sdp => [...sdp.matchAll(/a=fingerprint:sha-256 (\S+)/g)].map(m => m[1].replace(/:/g, '').toLowerCase());
-  const confere = (sdp, esperado) => { const f = fps(sdp); return f.length > 0 && f.every(x => x === esperado); };
+  // Estrito de propósito: o navegador aceita a=fingerprint em qualquer caixa e outros algoritmos e
+  // usa a última linha da seção. Só vale se TODA linha a=fingerprint for sha-256 com o mesmo valor;
+  // qualquer linha extra, isca ou algoritmo diferente devolve null.
+  const fpUnico = sdp => {
+    const vals = sdp.split(/\r?\n/).filter(l => /^a=fingerprint:/i.test(l))
+      .map(l => /^a=fingerprint:sha-256 ([0-9a-f]{2}(?::[0-9a-f]{2}){31})\s*$/i.exec(l)?.[1].replace(/:/g, '').toLowerCase());
+    return vals.length > 0 && vals.every(x => x && x === vals[0]) ? vals[0] : null;
+  };
+  const confere = (sdp, esperado) => !!esperado && fpUnico(sdp) === esperado;
   const comCertificado = async () => {
     const cert = await RTCPeerConnection.generateCertificate({ name: 'ECDSA', namedCurve: 'P-256' });
     const fp = cert.getFingerprints().find(f => f.algorithm === 'sha-256').value.replace(/:/g, '').toLowerCase();
@@ -276,16 +283,22 @@
     // Queda só do servidor de sinalização não derruba quem já assiste; reconecta mantendo o link.
     meu.on('disconnected', () => !fim && !meu.destroyed && meu.reconnect());
     meu.on('error', e => st.textContent = 'Erro de conexão: ' + e.type);
+    // Teto de conexões que ainda não mandaram o código: quem tem o link não enche a memória de pendentes.
+    let pendentes = 0;
     meu.on('connection', c => {
-      let tentou = false, chamada;
+      if (pendentes >= 20) return c.close();
+      pendentes++;
+      let tentou = false, pendente = true, chamada;
+      const libera = () => { if (pendente) { pendente = false; pendentes--; } };
       // Fechar o canal de dados derruba também o vídeo: ninguém some da lista e continua assistindo.
-      c.on('close', () => { chamada?.close(); espectadores.delete(c); status(); });
+      c.on('close', () => { libera(); chamada?.close(); espectadores.delete(c); status(); });
       // Quem conecta e não manda o código em 10 s é derrubado.
       setTimeout(() => !tentou && c.close(), 10000);
       c.on('data', d => {
         if (d?.saiu) return c.close();
         if (tentou) return;
         tentou = true; // uma tentativa por conexão: força bruta exige uma conexão WebRTC nova a cada chute
+        libera();
         if (erros >= LIMITE || typeof d?.pin !== 'string' || d.pin !== pin) {
           if (erros < LIMITE) erros++;
           status();
@@ -296,7 +309,8 @@
         status();
         // O código chegou por esta conexão, então o certificado dela é o de quem digitou. O vídeo só
         // sai se a conexão de vídeo tiver o mesmo certificado: alguém no meio não recebe a tela.
-        const dele = fps(c.peerConnection.remoteDescription.sdp)[0];
+        const dele = fpUnico(c.peerConnection.remoteDescription.sdp);
+        if (!dele) return c.close();
         chamada = meu.call(c.peer, s, { sdpTransform: stereo });
         const pc = chamada.peerConnection;
         pc.addEventListener('signalingstatechange', () => {
