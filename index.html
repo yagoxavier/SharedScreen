@@ -1,0 +1,85 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tela</title>
+<style>
+  body { margin: 0; height: 100vh; display: flex; flex-direction: column; background: #111; color: #eee; font: 15px system-ui; }
+  #bar { display: flex; gap: 8px; align-items: center; padding: 8px; }
+  #link { flex: 1; }
+  video { flex: 1; min-height: 0; width: 100%; background: #000; }
+</style>
+<div id="bar">
+  <select id="q">
+    <option value="motion" selected>Fluido (vídeo/jogo) · 1080p 60fps · ~10 Mbps por amigo</option>
+    <option value="detail">Nítido (texto/código) · 1080p 15fps · ~6 Mbps por amigo</option>
+    <option value="leve">Leve (internet fraca) · 720p 30fps · ~2,5 Mbps por amigo</option>
+  </select>
+  <button id="go">Transmitir</button>
+  <input id="link" readonly placeholder="o link da sala aparece aqui" onclick="this.select()">
+  <span id="st"></span>
+</div>
+<video id="v" autoplay playsinline controls></video>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+  const PRESETS = {
+    motion: { w: 1920, h: 1080, fps: 60, mbps: 10, hint: 'motion' },
+    detail: { w: 1920, h: 1080, fps: 15, mbps: 6, hint: 'detail' },
+    leve: { w: 1280, h: 720, fps: 30, mbps: 2.5, hint: 'motion' },
+  };
+  // Opus sai mono ~32 kbps por padrão; pede estéreo e mais bitrate (música/jogo).
+  const stereo = sdp => sdp.replace(/useinbandfec=1/g, 'useinbandfec=1;stereo=1;sprop-stereo=1;maxaveragebitrate=256000');
+  const sala = new URLSearchParams(location.search).get('sala');
+  const peer = () => {
+    const p = new Peer();
+    p.on('error', e => st.textContent = e.type === 'peer-unavailable' ? 'Sala fechada.' : 'Erro: ' + e.type);
+    return p;
+  };
+
+  if (sala) {
+    // Espectador: o clique em "Assistir" libera o autoplay com som.
+    go.textContent = 'Assistir';
+    link.hidden = q.hidden = true;
+    go.onclick = () => {
+      go.hidden = true;
+      st.textContent = 'Conectando...';
+      const p = peer();
+      p.on('open', () => p.connect(sala));
+      p.on('call', c => {
+        c.answer(undefined, { sdpTransform: stereo });
+        c.on('stream', s => { v.srcObject = s; st.textContent = ''; });
+        c.on('close', () => st.textContent = 'Transmissão encerrada.');
+      });
+    };
+  } else {
+    // Transmissor: quem entra abre uma conexão de dados; respondemos ligando com a tela.
+    go.onclick = async () => {
+      const cfg = PRESETS[q.value];
+      const s = await navigator.mediaDevices.getDisplayMedia({
+        video: { width: { ideal: cfg.w }, height: { ideal: cfg.h }, frameRate: { ideal: cfg.fps } },
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      });
+      // contentHint faz o Chrome priorizar nitidez (detail) ou fluidez (motion) quando a banda aperta.
+      s.getVideoTracks()[0].contentHint = cfg.hint;
+      if (!s.getAudioTracks().length) st.textContent = 'Sem áudio: compartilhe a TELA INTEIRA e marque "áudio do sistema".';
+      v.srcObject = s;
+      v.muted = true;
+      go.hidden = q.disabled = true;
+      const p = peer();
+      p.on('open', id => link.value = location.href.split('?')[0] + '?sala=' + id);
+      p.on('connection', c => c.on('open', () => {
+        const pc = p.call(c.peer, s, { sdpTransform: stereo }).peerConnection;
+        // O teto padrão do WebRTC para tela é baixo; sobe o maxBitrate do vídeo depois de conectar.
+        pc.addEventListener('connectionstatechange', () => {
+          if (pc.connectionState !== 'connected') return;
+          for (const snd of pc.getSenders()) {
+            if (snd.track?.kind !== 'video') continue;
+            const prm = snd.getParameters();
+            prm.encodings[0].maxBitrate = cfg.mbps * 1e6;
+            snd.setParameters(prm);
+          }
+        });
+      }));
+      s.getVideoTracks()[0].onended = () => { p.destroy(); st.textContent = 'Encerrado.'; };
+    };
+  }
+</script>
