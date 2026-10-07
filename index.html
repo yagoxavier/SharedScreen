@@ -1,24 +1,89 @@
 <!doctype html>
+<html lang="pt-BR">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Tela</title>
+<title>SharedScreen</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Figtree:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap">
 <style>
-  body { margin: 0; height: 100vh; display: flex; flex-direction: column; background: #111; color: #eee; font: 15px system-ui; }
-  #bar { display: flex; gap: 8px; align-items: center; padding: 8px; }
-  #link { flex: 1; }
-  video { flex: 1; min-height: 0; width: 100%; background: #000; }
+  :root { --bg: #16132A; --panel: #211D3B; --line: #342E5A; --text: #F3EFFA; --muted: #A39CC2; --live: #FF4D5E; --glow: #FFB547; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+    background: radial-gradient(ellipse at 50% -10%, #2A2350 0%, var(--bg) 60%) fixed var(--bg);
+    color: var(--text); font: 16px/1.5 Figtree, system-ui, sans-serif;
+  }
+  button { font: inherit; cursor: pointer; border: 0; border-radius: 12px; }
+  button:disabled { opacity: .5; cursor: default; }
+  :focus-visible { outline: 2px solid var(--glow); outline-offset: 3px; }
+
+  /* Tela inicial */
+  #lobby { margin: auto; width: min(560px, 100% - 32px); padding: 40px 0; text-align: center; }
+  .marca { margin: 0; font: 800 clamp(44px, 9vw, 68px)/1 'Bricolage Grotesque', sans-serif; letter-spacing: -.035em; }
+  .marca span { color: var(--glow); }
+  #sub { margin: 14px 0 32px; color: var(--muted); font-size: 18px; }
+  .opcoes { display: grid; gap: 10px; margin: 0 0 24px; padding: 0; border: 0; text-align: left; }
+  .opcoes legend { padding: 0 0 8px; color: var(--muted); font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+  .opcoes label { display: flex; gap: 14px; align-items: center; padding: 14px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; cursor: pointer; }
+  .opcoes label:has(input:checked) { border-color: var(--glow); box-shadow: inset 0 0 0 1px var(--glow); }
+  .opcoes input { margin: 0; accent-color: var(--glow); }
+  .opcoes b { display: block; font-weight: 600; }
+  .opcoes small { color: var(--muted); font-size: 14px; }
+  #go { width: 100%; padding: 16px; background: var(--glow); color: #1C1530; font-size: 18px; font-weight: 700; }
+  #go:hover { filter: brightness(1.08); }
+  #nota { margin: 16px 0 0; color: var(--muted); font-size: 14px; }
+  #nota b { color: var(--text); font-weight: 600; }
+
+  /* Ao vivo */
+  #palco { display: none; flex: 1; flex-direction: column; gap: 12px; min-height: 0; padding: 12px 16px 16px; }
+  body.vivo { height: 100dvh; }
+  body.vivo #lobby { display: none; }
+  body.vivo #palco { display: flex; }
+  .barra { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  #tally { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: rgba(255, 77, 94, .12); color: var(--live); font-size: 13px; font-weight: 700; letter-spacing: .08em; }
+  #tally::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--live); box-shadow: 0 0 10px var(--live); animation: pulsa 1.6s ease-in-out infinite; }
+  #tally.off { background: var(--panel); color: var(--muted); }
+  #tally.off::before { background: var(--muted); box-shadow: none; animation: none; }
+  @keyframes pulsa { 50% { opacity: .35; } }
+  @media (prefers-reduced-motion: reduce) { #tally::before { animation: none; } }
+  #caixa { display: flex; flex: 1; min-width: 220px; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+  #link { flex: 1; min-width: 0; padding: 10px 12px; background: none; border: 0; color: var(--text); font: 500 14px 'JetBrains Mono', monospace; }
+  #copiar { padding: 0 16px; border-radius: 0; background: var(--line); color: var(--text); font-weight: 600; }
+  #st { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; color: var(--muted); font-size: 14px; }
+  .chip { padding: 4px 9px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); color: var(--text); }
+  .chip b { color: var(--glow); font: 500 13px 'JetBrains Mono', monospace; }
+  #aviso { color: var(--live); font-size: 14px; }
+  #sair { margin-left: auto; padding: 8px 14px; background: none; border: 1px solid var(--line); color: var(--muted); }
+  #sair:hover { color: var(--text); border-color: var(--muted); }
+  .tela { flex: 1; min-height: 0; overflow: hidden; border-radius: 16px; background: #000; box-shadow: 0 0 0 1px var(--line), 0 30px 120px -20px rgba(255, 181, 71, .28); }
+  video { display: block; width: 100%; height: 100%; object-fit: contain; }
 </style>
-<div id="bar">
-  <select id="q">
-    <option value="motion" selected>Fluido (vídeo/jogo) · 1080p 60fps · ~10 Mbps por amigo</option>
-    <option value="detail">Nítido (texto/código) · 1080p 15fps · ~6 Mbps por amigo</option>
-    <option value="leve">Leve (internet fraca) · 720p 30fps · ~2,5 Mbps por amigo</option>
-  </select>
+
+<main id="lobby">
+  <h1 class="marca">Shared<span>Screen</span></h1>
+  <p id="sub">Sua tela e o som do PC, ao vivo, para quem tiver o link.</p>
+  <fieldset class="opcoes" id="q">
+    <legend>Qualidade</legend>
+    <label><input type="radio" name="q" value="motion" checked><span><b>Fluido</b><small>Vídeo e jogo · 1080p 60fps · ~10 Mbps por pessoa</small></span></label>
+    <label><input type="radio" name="q" value="detail"><span><b>Nítido</b><small>Texto e código · 1080p 15fps · ~6 Mbps por pessoa</small></span></label>
+    <label><input type="radio" name="q" value="leve"><span><b>Leve</b><small>Internet fraca · 720p 30fps · ~2,5 Mbps por pessoa</small></span></label>
+  </fieldset>
   <button id="go">Transmitir</button>
-  <input id="link" readonly placeholder="o link da sala aparece aqui" onclick="this.select()">
-  <span id="st"></span>
-</div>
-<video id="v" autoplay playsinline controls></video>
+  <p id="nota">Na janela que abrir, escolha <b>Tela inteira</b> e ative <b>Compartilhar áudio do sistema</b>.</p>
+</main>
+
+<section id="palco">
+  <div class="barra">
+    <span id="tally">AO VIVO</span>
+    <div id="caixa"><input id="link" readonly placeholder="Gerando link…" aria-label="Link da sala" onclick="this.select()"><button id="copiar" disabled>Copiar link</button></div>
+    <span id="st" aria-live="polite"></span>
+    <span id="aviso" hidden>Sem áudio: compartilhe a tela inteira com o áudio do sistema</span>
+    <button id="sair">Encerrar</button>
+  </div>
+  <div class="tela"><video id="v" autoplay playsinline controls></video></div>
+</section>
+
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" integrity="sha384-nlUQ8ZqCbvStErob+biJNzSgltf6urV3VGqhfIfzhmg9RXmpeRm76ELw0pYnKlTR" crossorigin="anonymous"></script>
 <script>
   const PRESETS = {
@@ -39,48 +104,88 @@
   };
   const conectado = (pc, fn) => pc.addEventListener('connectionstatechange', () => pc.connectionState === 'connected' && fn());
   const sala = new URLSearchParams(location.search).get('sala');
+
+  let p, s, fim = false;
   const peer = () => {
-    const p = new Peer();
-    p.on('error', e => st.textContent = e.type === 'peer-unavailable' ? 'Sala fechada.' : 'Erro: ' + e.type);
-    return p;
+    p = new Peer();
+    p.on('error', e => st.textContent = e.type === 'peer-unavailable' ? 'Essa sala não existe mais. Peça um link novo.' : 'Erro de conexão: ' + e.type);
+  };
+  const aoVivo = (sim, txt) => { tally.textContent = txt; tally.classList.toggle('off', !sim); };
+  // Monta via textContent: nada que vem da rede vira HTML.
+  const chip = (cod, rotulo) => {
+    const el = document.createElement('span');
+    el.className = 'chip';
+    if (rotulo) el.append(rotulo + ' ');
+    el.append(Object.assign(document.createElement('b'), { textContent: cod }));
+    return el;
+  };
+  const encerra = msg => {
+    if (fim) return;
+    fim = true;
+    p?.destroy();
+    s?.getTracks().forEach(t => t.stop());
+    v.srcObject = null;
+    aoVivo(false, 'ENCERRADA');
+    st.textContent = msg;
+    caixa.hidden = sair.hidden = aviso.hidden = true;
+  };
+  sair.onclick = () => encerra(sala ? 'Você saiu da transmissão.' : 'Transmissão encerrada.');
+  copiar.onclick = async () => {
+    await navigator.clipboard.writeText(link.value);
+    copiar.textContent = 'Copiado';
+    setTimeout(() => copiar.textContent = 'Copiar link', 1500);
   };
 
   if (sala) {
     // Espectador: o clique em "Assistir" libera o autoplay com som.
+    sub.textContent = 'Você foi convidado para assistir uma tela ao vivo.';
+    nota.textContent = 'Só imagem e som. Ninguém vê nem ouve você.';
     go.textContent = 'Assistir';
-    link.hidden = q.hidden = true;
+    sair.textContent = 'Sair';
+    q.hidden = caixa.hidden = true;
     go.onclick = () => {
-      go.hidden = true;
-      st.textContent = 'Conectando...';
-      const p = peer();
+      document.body.classList.add('vivo');
+      aoVivo(false, 'CONECTANDO');
+      peer();
       p.on('open', () => p.connect(sala));
       p.on('call', c => {
         if (c.peer !== sala) return c.close();
         c.answer(undefined, { sdpTransform: stereo });
-        c.on('stream', s => v.srcObject = s);
-        conectado(c.peerConnection, async () => st.textContent = 'Código: ' + await codigo(c.peerConnection) + ' (confira com quem transmite)');
-        c.on('close', () => st.textContent = 'Transmissão encerrada.');
+        c.on('stream', m => v.srcObject = m);
+        c.on('close', () => encerra('A transmissão terminou.'));
+        conectado(c.peerConnection, async () => {
+          aoVivo(true, 'AO VIVO');
+          st.replaceChildren(chip(await codigo(c.peerConnection), 'Código'), 'confira com quem transmite');
+        });
       });
     };
   } else {
     // Transmissor: quem entra abre uma conexão de dados; respondemos ligando com a tela.
     go.onclick = async () => {
-      const cfg = PRESETS[q.value];
-      const s = await navigator.mediaDevices.getDisplayMedia({
-        video: { width: { ideal: cfg.w }, height: { ideal: cfg.h }, frameRate: { ideal: cfg.fps } },
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-      });
+      const cfg = PRESETS[document.querySelector('input[name=q]:checked').value];
+      try {
+        s = await navigator.mediaDevices.getDisplayMedia({
+          video: { width: { ideal: cfg.w }, height: { ideal: cfg.h }, frameRate: { ideal: cfg.fps } },
+          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        });
+      } catch { return; } // Cancelou a janela de escolha da tela.
       // contentHint faz o Chrome priorizar nitidez (detail) ou fluidez (motion) quando a banda aperta.
       s.getVideoTracks()[0].contentHint = cfg.hint;
-      if (!s.getAudioTracks().length) st.textContent = 'Sem áudio: compartilhe a TELA INTEIRA e marque "áudio do sistema".';
+      aviso.hidden = s.getAudioTracks().length > 0;
       v.srcObject = s;
       v.muted = true;
-      go.hidden = q.disabled = true;
-      const p = peer();
-      p.on('open', id => link.value = location.href.split('?')[0] + '?sala=' + id);
+      document.body.classList.add('vivo');
+      aoVivo(true, 'AO VIVO');
+      peer();
+      p.on('open', id => { link.value = location.href.split('?')[0] + '?sala=' + id; copiar.disabled = false; });
       // Mostra quem assiste e o código de cada um: link vazado aparece como gente a mais.
       const codigos = new Map();
-      const status = () => st.textContent = codigos.size + ' assistindo' + (codigos.size ? ' · códigos: ' + [...codigos.values()].join('  ') : '');
+      const status = () => {
+        if (fim) return; // destroy() fecha as conexões e dispara 'close' depois do encerramento.
+        if (!codigos.size) return st.textContent = 'Ninguém assistindo ainda';
+        st.replaceChildren(codigos.size + (codigos.size > 1 ? ' pessoas assistindo' : ' pessoa assistindo'), ...[...codigos.values()].map(cod => chip(cod)));
+      };
+      status();
       p.on('connection', c => c.on('open', () => {
         codigos.set(c, '…');
         status();
@@ -98,7 +203,7 @@
           }
         });
       }));
-      s.getVideoTracks()[0].onended = () => { p.destroy(); st.textContent = 'Encerrado.'; };
+      s.getVideoTracks()[0].onended = () => encerra('Você parou de compartilhar.');
     };
   }
 </script>
