@@ -1,0 +1,65 @@
+@font-face { font-family: 'Bricolage Grotesque'; font-weight: 800; font-display: swap; src: url(fontes/bricolage-grotesque.woff2) format('woff2'); }
+@font-face { font-family: 'Figtree'; font-weight: 400 700; font-display: swap; src: url(fontes/figtree.woff2) format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 500; font-display: swap; src: url(fontes/jetbrains-mono.woff2) format('woff2'); }
+
+:root { --bg: #16132A; --panel: #211D3B; --line: #342E5A; --text: #F3EFFA; --muted: #A39CC2; --live: #FF4D5E; --glow: #FFB547; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+  background: radial-gradient(ellipse at 50% -10%, #2A2350 0%, var(--bg) 60%) fixed var(--bg);
+  color: var(--text); font: 16px/1.5 Figtree, system-ui, sans-serif;
+}
+button { font: inherit; cursor: pointer; border: 0; border-radius: 12px; }
+button:disabled { opacity: .5; cursor: default; }
+:focus-visible { outline: 2px solid var(--glow); outline-offset: 3px; }
+
+/* Tela inicial */
+#lobby { margin: auto; width: min(560px, 100% - 32px); padding: 40px 0; text-align: center; }
+.marca { margin: 0; font: 800 clamp(44px, 9vw, 68px)/1 'Bricolage Grotesque', sans-serif; letter-spacing: -.035em; }
+.marca span { color: var(--glow); }
+#sub { margin: 14px 0 32px; color: var(--muted); font-size: 18px; }
+.opcoes { display: grid; gap: 10px; margin: 0 0 24px; padding: 0; border: 0; text-align: left; }
+.opcoes legend, #campo { padding: 0 0 8px; color: var(--muted); font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.opcoes label { display: flex; gap: 14px; align-items: center; padding: 14px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; cursor: pointer; }
+.opcoes label:has(input:checked) { border-color: var(--glow); box-shadow: inset 0 0 0 1px var(--glow); }
+.opcoes input { margin: 0; accent-color: var(--glow); }
+.opcoes b { display: block; font-weight: 600; }
+.opcoes small { color: var(--muted); font-size: 14px; }
+#campo { display: grid; gap: 8px; margin-bottom: 16px; text-align: left; }
+#pinin { width: 100%; padding: 12px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; color: var(--text); font: 500 30px 'JetBrains Mono', monospace; letter-spacing: .4em; text-align: center; }
+#pinin:focus { border-color: var(--glow); }
+#go { width: 100%; padding: 16px; background: var(--glow); color: #1C1530; font-size: 18px; font-weight: 700; }
+#go:hover { filter: brightness(1.08); }
+#nota { margin: 16px 0 0; color: var(--muted); font-size: 14px; }
+#nota b { color: var(--text); font-weight: 600; }
+#nota.erro { color: var(--live); font-weight: 600; }
+
+/* Ao vivo */
+#palco { display: none; flex: 1; flex-direction: column; gap: 12px; min-height: 0; padding: 12px 16px 16px; }
+body.vivo { height: 100dvh; }
+body.vivo #lobby { display: none; }
+body.vivo #palco { display: flex; }
+.barra { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+#tally { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: rgba(255, 77, 94, .12); color: var(--live); font-size: 13px; font-weight: 700; letter-spacing: .08em; }
+#tally::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--live); box-shadow: 0 0 10px var(--live); animation: pulsa 1.6s ease-in-out infinite; }
+#tally.off { background: var(--panel); color: var(--muted); }
+#tally.off::before { background: var(--muted); box-shadow: none; animation: none; }
+@keyframes pulsa { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { #tally::before { animation: none; } }
+#caixa { display: flex; flex: 1; min-width: 220px; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+#link { flex: 1; min-width: 0; padding: 10px 12px; background: none; border: 0; color: var(--text); font: 500 14px 'JetBrains Mono', monospace; }
+#copiar { padding: 0 16px; border-radius: 0; background: var(--line); color: var(--text); font-weight: 600; }
+#st { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; color: var(--muted); font-size: 14px; }
+.chip { padding: 4px 9px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); color: var(--text); font-size: 14px; }
+.chip b { color: var(--glow); font: 500 13px 'JetBrains Mono', monospace; }
+#aviso { color: var(--live); font-size: 14px; }
+#inicio { padding: 6px 12px; background: var(--panel); border: 1px solid var(--line); color: var(--text); font-weight: 600; }
+#inicio:hover { border-color: var(--muted); }
+#sair { margin-left: auto; padding: 8px 14px; background: none; border: 1px solid var(--line); color: var(--muted); }
+#sair:hover { color: var(--text); border-color: var(--muted); }
+.tela { position: relative; flex: 1; min-height: 0; overflow: hidden; border-radius: 16px; background: #000; box-shadow: 0 0 0 1px var(--line), 0 30px 120px -20px rgba(255, 181, 71, .28); }
+video { display: block; width: 100%; height: 100%; object-fit: contain; }
+#fimtela { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 16px; background: rgba(22, 19, 42, .9); text-align: center; }
+#fimmsg { margin: 0; font: 800 clamp(26px, 4vw, 40px)/1.1 'Bricolage Grotesque', sans-serif; letter-spacing: -.02em; }
+#denovo { padding: 12px 22px; background: var(--glow); color: #1C1530; font-weight: 700; }

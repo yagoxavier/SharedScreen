@@ -72,9 +72,7 @@ vão criptografados de ponta a ponta.
   possível, o vídeo passa pelo servidor de retransmissão (TURN) público do PeerJS, ainda
   criptografado.
 - Quem tem o link consegue trancar a sala errando o código de propósito. Se isso acontecer, volte
-  ao início e transmita de novo: o link e o código mudam.
-- As fontes vêm do Google Fonts, então o Google vê cada acesso à página.
-- Na tela inteira aparece tudo, inclusive notificações. Feche o que não deve ser visto antes de
+  ao início e transmita de novo: o link e o código mudam.- Na tela inteira aparece tudo, inclusive notificações. Feche o que não deve ser visto antes de
   transmitir.
 - Redes muito restritas, como algumas corporativas, podem bloquear a conexão direta.
 

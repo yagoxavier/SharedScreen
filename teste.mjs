@@ -2,8 +2,8 @@
 // Uso: node teste.mjs   — sai 1 se algum caso falhar.
 import { readFileSync } from 'node:fs';
 
-const html = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
-const trecho = html.match(/const fpUnico = sdp[\s\S]*?const confere = .*\n/)[0];
+const fonte = readFileSync(new URL('./app.js', import.meta.url), 'utf8');
+const trecho = fonte.match(/const fpUnico = sdp[\s\S]*?const confere = .*\r?\n/)[0];
 const confere = new Function(trecho + 'return confere;')();
 
 const k = 'ab'.repeat(32), atacante = 'cd'.repeat(32);
