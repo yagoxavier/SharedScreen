@@ -19,7 +19,7 @@
   <span id="st"></span>
 </div>
 <video id="v" autoplay playsinline controls></video>
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" integrity="sha384-nlUQ8ZqCbvStErob+biJNzSgltf6urV3VGqhfIfzhmg9RXmpeRm76ELw0pYnKlTR" crossorigin="anonymous"></script>
 <script>
   const PRESETS = {
     motion: { w: 1920, h: 1080, fps: 60, mbps: 10, hint: 'motion' },
@@ -45,6 +45,7 @@
       const p = peer();
       p.on('open', () => p.connect(sala));
       p.on('call', c => {
+        if (c.peer !== sala) return c.close();
         c.answer(undefined, { sdpTransform: stereo });
         c.on('stream', s => { v.srcObject = s; st.textContent = ''; });
         c.on('close', () => st.textContent = 'Transmissão encerrada.');
@@ -66,7 +67,12 @@
       go.hidden = q.disabled = true;
       const p = peer();
       p.on('open', id => link.value = location.href.split('?')[0] + '?sala=' + id);
+      // Mostra quantos assistem: link vazado aparece como gente a mais.
+      let n = 0;
+      const conta = d => st.textContent = (n += d) + ' assistindo';
       p.on('connection', c => c.on('open', () => {
+        conta(1);
+        c.on('close', () => conta(-1));
         const pc = p.call(c.peer, s, { sdpTransform: stereo }).peerConnection;
         // O teto padrão do WebRTC para tela é baixo; sobe o maxBitrate do vídeo depois de conectar.
         pc.addEventListener('connectionstatechange', () => {
